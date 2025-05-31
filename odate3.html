@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>おだて豚 データ解析ツール</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            padding: 10px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            font-size: 20px;
+            text-align: center;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        
+        .section {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border: 1px solid #333;
+        }
+        
+        .upload-btn {
+            width: 100%;
+            padding: 15px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        
+        .upload-btn:active {
+            transform: scale(0.98);
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .ocr-status {
+            background: #2a2a2a;
+            padding: 8px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            text-align: center;
+            font-size: 13px;
+            color: #888;
+            display: none;
+        }
+        
+        .ocr-status.show {
+            display: block;
+        }
+        
+        .ocr-status.loading {
+            color: #ffa500;
+        }
+        
+        .ocr-status.success {
+            color: #4ade80;
+            background: #1a3a1a;
+        }
+        
+        .ocr-status.error {
+            color: #f87171;
+            background: #3a1a1a;
+        }
+        
+        .notice {
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 12px;
+            color: #888;
+            text-align: center;
+        }
+        
+        .input-section {
+            margin-bottom: 15px;
+        }
+        
+        .input-single {
+            margin-bottom: 10px;
+        }
+        
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin: 10px 0;
+        }
+        
+        .input-item {
+            text-align: center;
+        }
+        
+        .input-item label {
+            font-size: 11px;
+            color: #888;
+            display: block;
+            margin-bottom: 3px;
+        }
+        
+        .input-item input {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #444;
+            background: #0a0a0a;
+            color: #fff;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        .input-item input:focus {
+            outline: none;
+            border-color: #007bff;
+            background: #1a1a1a;
+        }
+        
+        /* 対象ゲーム数は手動入力を強調 */
+        .input-single .input-item {
+            background: #1e1e1e;
+            padding: 8px;
+            border-radius: 6px;
+        }
+        
+        .input-single .input-item label {
+            color: #aaa;
+            font-size: 12px;
+        }
+        
+        /* 数字のみ入力可能にする */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .result-section {
+            display: none;
+        }
+        
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #333;
+        }
+        
+        .result-title {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .screenshot-hint {
+            font-size: 10px;
+            color: #666;
+        }
+        
+        .result-group {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+        }
+        
+        .result-group.jackpot {
+            background: rgba(74, 144, 226, 0.1);
+        }
+        
+        .result-group.stats {
+            background: rgba(34, 197, 94, 0.1);
+            padding: 8px;
+        }
+        
+        .result-group.yakumono {
+            background: rgba(251, 146, 60, 0.1);
+            padding: 8px;
+        }
+        
+        .result-group.hiki {
+            background: rgba(147, 51, 234, 0.1);
+            padding: 8px;
+        }
+        
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .result-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        /* 大当りセクション以外は小さく */
+        .result-group:not(.jackpot) .result-row {
+            margin-bottom: 6px;
+        }
+        
+        .result-item {
+            text-align: center;
+            flex: 1;
+        }
+        
+        .result-label {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 3px;
+        }
+        
+        /* 大当りセクション以外のラベルは小さく */
+        .result-group:not(.jackpot) .result-label {
+            font-size: 10px;
+            margin-bottom: 2px;
+        }
+        
+        .result-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+        }
+        
+        /* 大当りセクション以外の値は小さく */
+        .result-group:not(.jackpot) .result-value {
+            font-size: 16px;
+        }
+        
+        .result-value.large {
+            font-size: 22px;
+        }
+        
+        .result-value.positive {
+            color: #4ade80;
+        }
+        
+        .result-value.negative {
+            color: #f87171;
+        }
+        
+        .r-dist {
+            font-size: 14px;
+        }
+        
+        .r-dist span {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 0 2px;
+        }
+        
+        .hiki-total {
+            background: rgba(30, 41, 59, 0.5);
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            border: 1px solid #334155;
+        }
+        
+        .hiki-total .result-value {
+            font-size: 20px;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,.2);
+            border-radius: 50%;
+            border-top-color: #007bff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 6px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* デバッグモード */
+        .debug-mode {
+            display: none;
+            background: #2a2a2a;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .debug-mode.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐷 おだて豚 データ解析</h1>
+        
+        <div class="section">
+            <button class="upload-btn" id="uploadBtn">📸 スクショを選択</button>
+            <input type="file" id="fileInput" accept="image/*">
+            
+            <div class="ocr-status" id="ocrStatus">
+                読み取り待機中...
+            </div>
+            
+            <div class="notice">
+                ※対象ゲーム数は手動入力してください
+            </div>
+            
+            <div class="input-section">
+                <div class="input-single">
+                    <div class="input-item">
+                        <label>対象ゲーム数（手動入力）</label>
+                        <input type="number" id="inputX" inputmode="numeric" pattern="[0-9]*">
+                    </div>
+                </div>
+                
+                <div class="input-grid">
+                    <div class="input-item">
+                        <label>打込</label>
+                        <input type="number" id="inputA" inputmode="numeric" pattern="[0-9]*">
+                    </div>
+                    <div class="input-item">
+                        <label>2穴</label>
+                        <input type="number" id="inputB" inputmode="numeric" pattern="[0-9]*">
+                    </div>
+                    <div class="input-item">
+                        <label>リプレイ</label>
+                        <input type="number" id="inputC" inputmode="numeric" pattern="[0-9]*">
+                    </div>
+                    <div class="input-item">
+                        <label>リプV</label>
+                        <input type="number" id="inputD" inputmode="numeric" pattern="[0-9]*">
+                    </div>
+                    <div class="input-item">
+                        <label>羽根拾</label>
+                        <input type="number" id="inputE" inputmode="numeric" pattern="[0-9]*">
+                    </div>
+                    <div class="input-item">
+                        <label>V入賞</label>
+                        <input type="number" id="inputF" inputmode="numeric" pattern="[0-9]*">
+                    </div>
+                    <div class="input-item">
+                        <label>SP</label>
+                        <input type="number" id="inputG" inputmode="numeric" pattern="[0-9]*">
+                    </div>
+                    <div class="input-item">
+                        <label>SP→V</label>
+                        <input type="number" id="inputH" inputmode="numeric" pattern="[0-9]*">
+                    </div>
+                    <div class="input-item">
+                        <label>蹴り</label>
+                        <input type="number" id="inputI" inputmode="numeric" pattern="[0-9]*">
+                    </div>
+                    <div class="input-item">
+                        <label>10R</label>
+                        <input type="number" id="inputJ" inputmode="numeric" pattern="[0-9]*">
+                    </div>
+                    <div class="input-item">
+                        <label>5R</label>
+                        <input type="number" id="inputK" inputmode="numeric" pattern="[0-9]*">
+                    </div>
+                    <div class="input-item">
+                        <label>3R</label>
+                        <input type="number" id="inputL" inputmode="numeric" pattern="[0-9]*">
+                    </div>
+                    <div class="input-item">
+                        <label>2開放目</label>
+                        <input type="number" id="inputM" inputmode="numeric" pattern="[0-9]*">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="btn-group">
+                <button class="btn btn-primary" id="calcBtn">計算</button>
+                <button class="btn btn-secondary" id="resetBtn">リセット</button>
+            </div>
+            
+            <div class="debug-mode" id="debugMode"></div>
+        </div>
+        
+        <div class="section result-section" id="resultSection">
+            <div class="result-header">
+                <div class="result-title">打込 <span id="resultA">100</span></div>
+                <div class="screenshot-hint">📱 スクショ推奨</div>
+            </div>
+            
+            <div class="result-group jackpot">
+                <div class="result-row">
+                    <div class="result-item">
+                        <div class="result-label">大当</div>
+                        <div class="result-value large" id="jackpotCount">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">大当り確率</div>
+                        <div class="result-value" id="jackpotProb">-</div>
+                    </div>
+                </div>
+                <div class="result-row">
+                    <div class="result-item">
+                        <div class="result-label">R振分</div>
+                        <div class="result-value r-dist">
+                            10R <span id="jCount">-</span> 5R <span id="kCount">-</span> 3R <span id="lCount">-</span>
+                        </div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">平均R</div>
+                        <div class="result-value" id="avgRound">-</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="result-group stats">
+                <div class="result-row">
+                    <div class="result-item">
+                        <div class="result-label">総ナキ数</div>
+                        <div class="result-value" id="totalNaki">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">ナキ/千</div>
+                        <div class="result-value" id="nakiPer">-</div>
+                    </div>
+                </div>
+                <div class="result-row">
+                    <div class="result-item">
+                        <div class="result-label">総拾い回数</div>
+                        <div class="result-value" id="totalPickup">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">拾い/千</div>
+                        <div class="result-value" id="pickupPer">-</div>
+                    </div>
+                </div>
+                <div class="result-row">
+                    <div class="result-item">
+                        <div class="result-label">拾球率</div>
+                        <div class="result-value" id="pickupRate">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">役物確率</div>
+                        <div class="result-value" id="yakumonoProb">-</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="result-group yakumono">
+                <div class="result-row">
+                    <div class="result-item">
+                        <div class="result-label">蹴り率</div>
+                        <div class="result-value" id="kickRate">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">SP発展率</div>
+                        <div class="result-value" id="spRate">-</div>
+                    </div>
+                </div>
+                <div class="result-row">
+                    <div class="result-item">
+                        <div class="result-label">SP成功率</div>
+                        <div class="result-value" id="spSuccess">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">リプレイ成功率</div>
+                        <div class="result-value" id="replaySuccess">-</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="result-group hiki">
+                <div class="hiki-total">
+                    <div class="result-label">期待差玉からのヒキの過多</div>
+                    <div class="result-value" id="totalHiki">-</div>
+                </div>
+                <div class="result-row">
+                    <div class="result-item">
+                        <div class="result-label">Rのヒキ</div>
+                        <div class="result-value" id="rHiki">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">SPルートのヒキ</div>
+                        <div class="result-value" id="spHiki">-</div>
+                    </div>
+                </div>
+                <div class="result-row">
+                    <div class="result-item">
+                        <div class="result-label">通-リプレイのヒキ</div>
+                        <div class="result-value" id="repHiki">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">通常ルートのヒキ</div>
+                        <div class="result-value" id="normHiki">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 要素取得
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileInput = document.getElementById('fileInput');
+        const calcBtn = document.getElementById('calcBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const resultSection = document.getElementById('resultSection');
+        const ocrStatus = document.getElementById('ocrStatus');
+        const debugMode = document.getElementById('debugMode');
+        
+        // フォーカス時に全選択（上書きモード）
+        const inputs = document.querySelectorAll('input[type="number"]');
+        inputs.forEach(input => {
+            input.addEventListener('focus', function() {
+                this.select();
+            });
+        });
+        
+        // イベント設定
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                performOCR(file);
+            }
+        });
+        
+        calcBtn.addEventListener('click', calculate);
+        resetBtn.addEventListener('click', () => location.reload());
+        
+        // 位置ベース高精度OCR処理
+        async function performOCR(file) {
+            ocrStatus.textContent = '画像を認識中...';
+            ocrStatus.className = 'ocr-status show loading';
+            debugMode.innerHTML = '';
+            debugMode.className = 'debug-mode';
+            
+            try {
+                const reader = new FileReader();
+                const imageData = await new Promise((resolve) => {
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.readAsDataURL(file);
+                });
+                
+                const result = await Tesseract.recognize(
+                    imageData,
+                    'eng',
+                    {
+                        logger: m => {
+                            if (m.status === 'recognizing text') {
+                                const progress = Math.round(m.progress * 100);
+                                ocrStatus.textContent = `認識中... ${progress}%`;
+                            }
+                        }
+                    }
+                );
+                
+                const text = result.data.text;
+                console.log('OCR結果:', text);
+                debugLog('OCR結果: ' + text);
+                
+                // 位置ベースの数値抽出
+                const extractedNumbers = extractNumbersByPosition(text);
+                debugLog('抽出された数値: ' + JSON.stringify(extractedNumbers));
+                
+                // レイアウトパターンに基づく割り当て
+                assignNumbersToInputs(extractedNumbers);
+                
+                // 検証と調整
+                validateAndAdjust();
+                
+                ocrStatus.textContent = '✅ 認識完了 - 対象ゲーム数を入力して、必要に応じて他の数値も修正してください';
+                ocrStatus.className = 'ocr-status show success';
+                
+                // 対象ゲーム数にフォーカス
+                document.getElementById('inputX').focus();
+                
+            } catch (error) {
+                console.error('OCRエラー:', error);
+                debugLog('OCRエラー: ' + error.message);
+                ocrStatus.textContent = '❌ 認識エラー - 手動で入力してください';
+                ocrStatus.className = 'ocr-status show error';
+            }
+        }
+        
+        // 位置ベースで数値を抽出
+        function extractNumbersByPosition(text) {
+            const lines = text.split('\n').filter(line => line.trim());
+            const allNumbers = [];
+            
+            // 各行から数値を抽出（位置情報を保持）
+            lines.forEach((line, lineIndex) => {
+                const matches = line.matchAll(/\d+/g);
+                for (const match of matches) {
+                    const num = parseInt(match[0]);
+                    if (num >= 0) {
+                        allNumbers.push({
+                            value: num,
+                            line: lineIndex,
+                            position: match.index,
+                            text: match[0]
+                        });
+                    }
+                }
+            });
+            
+            return allNumbers;
+        }
+        
+        // レイアウトパターンに基づいて数値を割り当て
+        function assignNumbersToInputs(numbers) {
+            if (numbers.length === 0) return;
+            
+            // 数値を大きさでソート（大きい順）
+            const sortedByValue = [...numbers].sort((a, b) => b.value - a.value);
+            
+            // 数値範囲に基づく分類
+            const ranges = {
+                veryLarge: [], // 300-1000 (E, I)
+                large: [],     // 100-300 (A)
+                medium: [],    // 50-200 (B)
+                small: [],     // 0-50 (C,D,F,G,H,J,K,L,M)
+            };
+            
+            sortedByValue.forEach(num => {
+                if (num.value >= 300 && num.value <= 1000) {
+                    ranges.veryLarge.push(num.value);
+                } else if (num.value >= 100 && num.value < 300) {
+                    ranges.large.push(num.value);
+                } else if (num.value >= 50 && num.value < 100) {
+                    ranges.medium.push(num.value);
+                } else if (num.value < 50) {
+                    ranges.small.push(num.value);
+                }
+            });
+            
+            debugLog('数値範囲分類: ' + JSON.stringify(ranges));
+            
+            // 割り当て
+            // E（羽根拾）- 最も大きい数値
+            if (ranges.veryLarge.length > 0) {
+                document.getElementById('inputE').value = ranges.veryLarge[0];
+                // I（蹴り）- 2番目に大きい数値
+                if (ranges.veryLarge.length > 1) {
+                    document.getElementById('inputI').value = ranges.veryLarge[1];
+                } else if (ranges.large.length > 0) {
+                    document.getElementById('inputI').value = ranges.large[0];
+                }
+            }
+            
+            // A（打込）- 100-300の範囲
+            if (ranges.large.length > 0) {
+                const aValue = ranges.large.find(v => v !== parseInt(document.getElementById('inputI').value));
+                if (aValue) {
+                    document.getElementById('inputA').value = aValue;
+                }
+            } else if (ranges.medium.length > 0) {
+                document.getElementById('inputA').value = ranges.medium[0];
+            }
+            
+            // B（2穴）- 50-200の範囲
+            if (ranges.medium.length > 0) {
+                const bValue = ranges.medium.find(v => v !== parseInt(document.getElementById('inputA').value));
+                if (bValue) {
+                    document.getElementById('inputB').value = bValue;
+                }
+            } else if (ranges.small.length > 0 && ranges.small[0] >= 20) {
+                document.getElementById('inputB').value = ranges.small[0];
+            }
+            
+            // 残りの小さい数値を順番に割り当て
+            const remainingInputs = ['C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M'];
+            const usedValues = new Set([
+                parseInt(document.getElementById('inputA').value) || 0,
+                parseInt(document.getElementById('inputB').value) || 0,
+                parseInt(document.getElementById('inputE').value) || 0,
+                parseInt(document.getElementById('inputI').value) || 0
+            ]);
+            
+            let assignIndex = 0;
+            [...ranges.small, ...ranges.medium].forEach(value => {
+                if (!usedValues.has(value) && assignIndex < remainingInputs.length) {
+                    document.getElementById(`input${remainingInputs[assignIndex]}`).value = value;
+                    usedValues.add(value);
+                    assignIndex++;
+                }
+            });
+        }
+        
+        // 検証と調整
+        function validateAndAdjust() {
+            // E > I の関係を確認
+            const e = parseInt(document.getElementById('inputE').value) || 0;
+            const i = parseInt(document.getElementById('inputI').value) || 0;
+            if (e > 0 && i > 0 && e < i) {
+                // 入れ替え
+                document.getElementById('inputE').value = i;
+                document.getElementById('inputI').value = e;
+                debugLog('E < I だったので入れ替えました');
+            }
+            
+            // C >= D の関係を確認
+            const c = parseInt(document.getElementById('inputC').value) || 0;
+            const d = parseInt(document.getElementById('inputD').value) || 0;
+            if (c > 0 && d > 0 && c < d) {
+                // 入れ替え
+                document.getElementById('inputC').value = d;
+                document.getElementById('inputD').value = c;
+                debugLog('C < D だったので入れ替えました');
+            }
+            
+            // G >= H の関係を確認
+            const g = parseInt(document.getElementById('inputG').value) || 0;
+            const h = parseInt(document.getElementById('inputH').value) || 0;
+            if (g > 0 && h > 0 && g < h) {
+                // 入れ替え
+                document.getElementById('inputG').value = h;
+                document.getElementById('inputH').value = g;
+                debugLog('G < H だったので入れ替えました');
+            }
+        }
+        
+        // デバッグログ
+        function debugLog(message) {
+            console.log(message);
+            // デバッグモードが必要な場合はコメントを外す
+            // debugMode.innerHTML += message + '<br>';
+            // debugMode.className = 'debug-mode show';
+        }
+        
+        function calculate() {
+            // 値取得
+            const v = {
+                X: parseInt(document.getElementById('inputX').value) || 0,
+                A: parseInt(document.getElementById('inputA').value) || 0,
+                B: parseInt(document.getElementById('inputB').value) || 0,
+                C: parseInt(document.getElementById('inputC').value) || 0,
+                D: parseInt(document.getElementById('inputD').value) || 0,
+                E: parseInt(document.getElementById('inputE').value) || 0,
+                F: parseInt(document.getElementById('inputF').value) || 0,
+                G: parseInt(document.getElementById('inputG').value) || 0,
+                H: parseInt(document.getElementById('inputH').value) || 0,
+                I: parseInt(document.getElementById('inputI').value) || 0,
+                J: parseInt(document.getElementById('inputJ').value) || 0,
+                K: parseInt(document.getElementById('inputK').value) || 0,
+                L: parseInt(document.getElementById('inputL').value) || 0,
+                M: parseInt(document.getElementById('inputM').value) || 0
+            };
+            
+            // 計算
+            const jackpotCount = v.J + v.K + v.L;
+            const avgRound = jackpotCount > 0 ? ((v.J * 9 + v.K * 4 + v.L * 2) / jackpotCount).toFixed(1) : '0';
+            
+            // 結果表示
+            document.getElementById('resultA').textContent = v.A;
+            document.getElementById('jackpotCount').textContent = jackpotCount;
+            document.getElementById('jackpotProb').textContent = jackpotCount > 0 ? '1/' + (v.X / jackpotCount).toFixed(1) : '-';
+            document.getElementById('jCount').textContent = v.J;
+            document.getElementById('kCount').textContent = v.K;
+            document.getElementById('lCount').textContent = v.L;
+            document.getElementById('avgRound').textContent = avgRound;
+            
+            document.getElementById('totalNaki').textContent = v.X;
+            document.getElementById('nakiPer').textContent = v.A > 0 ? (v.X / (v.A / 2)).toFixed(1) : '-';
+            document.getElementById('totalPickup').textContent = v.E;
+            document.getElementById('pickupPer').textContent = v.A > 0 ? (v.E / (v.A / 2)).toFixed(1) : '-';
+            document.getElementById('pickupRate').textContent = v.X > 0 ? ((v.E / v.X) * 100).toFixed(1) + '%' : '-';
+            document.getElementById('yakumonoProb').textContent = jackpotCount > 0 ? '1/' + (v.E / jackpotCount).toFixed(1) : '-';
+            
+            document.getElementById('kickRate').textContent = (v.E - v.G) > 0 ? ((v.I / (v.E - v.G)) * 100).toFixed(1) + '%' : '-';
+            document.getElementById('spRate').textContent = v.E > 0 ? ((v.G / v.E) * 100).toFixed(1) + '%' : '-';
+            document.getElementById('spSuccess').textContent = v.G > 0 ? ((v.H / v.G) * 100).toFixed(1) + '%' : '-';
+            document.getElementById('replaySuccess').textContent = v.C > 0 ? ((v.D / v.C) * 100).toFixed(1) + '%' : '-';
+            
+            // ヒキ計算
+            const roundHiki = ((v.J * 9 + v.K * 4 + v.L * 2) - (jackpotCount * 5)) * 110;
+            const spHiki = (v.H - (v.G / 3)) * 550;
+            const repHiki = (v.D - (v.I / 25.2)) * 550;
+            const normHiki = (v.F - (v.I / 8.4)) * 550;
+            const totalHiki = roundHiki + spHiki + repHiki + normHiki;
+            
+            const formatHiki = (val) => {
+                const rounded = Math.round(val);
+                return (rounded >= 0 ? '+' : '') + rounded;
+            };
+            
+            document.getElementById('totalHiki').textContent = formatHiki(totalHiki);
+            document.getElementById('totalHiki').className = totalHiki >= 0 ? 'result-value positive' : 'result-value negative';
+            
+            document.getElementById('rHiki').textContent = formatHiki(roundHiki);
+            document.getElementById('rHiki').className = roundHiki >= 0 ? 'result-value positive' : 'result-value negative';
+            
+            document.getElementById('spHiki').textContent = formatHiki(spHiki);
+            document.getElementById('spHiki').className = spHiki >= 0 ? 'result-value positive' : 'result-value negative';
+            
+            document.getElementById('repHiki').textContent = formatHiki(repHiki);
+            document.getElementById('repHiki').className = repHiki >= 0 ? 'result-value positive' : 'result-value negative';
+            
+            document.getElementById('normHiki').textContent = formatHiki(normHiki);
+            document.getElementById('normHiki').className = normHiki >= 0 ? 'result-value positive' : 'result-value negative';
+            
+            resultSection.style.display = 'block';
+            resultSection.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
